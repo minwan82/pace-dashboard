@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PACE — Performance Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --orange: #FC4C02;
+    --orange-dim: #c43c00;
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --border: #222222;
+    --text: #f0f0f0;
+    --muted: #666;
+    --green: #22c55e;
+    --yellow: #eab308;
+    --red: #ef4444;
+    --blue: #3b82f6;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'Noto Sans KR',sans-serif; min-height:100vh; }
+
+  #loading-screen { display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:1.5rem; }
+  .logo { font-family:'Bebas Neue',sans-serif;font-size:5rem;letter-spacing:0.05em;line-height:1; }
+  .logo span { color:var(--orange); }
+  .spinner { width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin 0.8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .loading-text { font-family:'DM Mono',monospace;font-size:0.75rem;color:var(--muted);letter-spacing:0.1em; }
+
+  #error-screen { display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:1rem;padding:2rem; }
+  .error-box { background:#1a0000;border:1px solid #440000;border-radius:12px;padding:1.5rem;max-width:480px;width:100%; }
+  .error-title { font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--red);letter-spacing:0.1em;margin-bottom:0.75rem; }
+  .error-msg { font-size:0.82rem;color:#ff8888;line-height:1.7; }
+
+  .topbar { display:flex;align-items:center;justify-content:space-between;padding:1rem 1.5rem;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:10; }
+  .topbar-logo { font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:0.05em; }
+  .topbar-logo span { color:var(--orange); }
+  .athlete-info { display:flex;align-items:center;gap:0.75rem; }
+  .athlete-avatar { width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid var(--orange); }
+  .athlete-name { font-size:0.82rem;font-weight:500; }
+
+  #dashboard { display:none; }
+  .main { padding:1.5rem;max-width:860px;margin:0 auto; }
+
+  .stats-grid { display:grid;grid-template-columns:repeat(2,1fr);gap:0.75rem;margin-bottom:1.5rem; }
+  .stat-card { background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem;position:relative;overflow:hidden; }
+  .stat-card::after { content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--orange); }
+  .stat-label { font-family:'DM Mono',monospace;font-size:0.6rem;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.5rem; }
+  .stat-value { font-family:'Bebas Neue',sans-serif;font-size:2.2rem;line-height:1; }
+  .stat-unit { font-family:'DM Mono',monospace;font-size:0.6rem;color:var(--muted);margin-top:0.2rem; }
+
+  .section-label { font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--orange);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:1rem; }
+
+  .race-pred { background:linear-gradient(135deg,#1a0800,var(--surface));border:1px solid #3a1400;border-radius:12px;padding:1.25rem;margin-bottom:1.5rem; }
+  .race-grid { display:grid;grid-template-columns:repeat(2,1fr);gap:0.75rem; }
+  .race-dist { font-family:'DM Mono',monospace;font-size:0.6rem;color:var(--muted);margin-bottom:0.2rem; }
+  .race-time { font-family:'Bebas Neue',sans-serif;font-size:1.8rem;line-height:1; }
+  .race-goal { font-size:0.6rem;color:var(--orange);font-family:'DM Mono',monospace;margin-top:0.2rem; }
+  .race-gap { font-size:0.65rem;margin-top:0.2rem; }
+
+  .recovery-card { background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem;margin-bottom:1.5rem; }
+  .recovery-bars { display:flex;flex-direction:column;gap:0.75rem;margin-top:0.5rem; }
+  .recovery-row { display:flex;align-items:center;gap:0.75rem; }
+  .recovery-name { font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--muted);width:55px;flex-shrink:0; }
+  .bar-track { flex:1;height:7px;background:var(--surface2);border-radius:4px;overflow:hidden; }
+  .bar-fill { height:100%;border-radius:4px;transition:width 1.2s ease; }
+  .bar-val { font-family:'DM Mono',monospace;font-size:0.65rem;width:32px;text-align:right; }
+  .recovery-comment { font-size:0.78rem;color:var(--muted);margin-top:0.75rem;line-height:1.6;border-top:1px solid var(--border);padding-top:0.75rem; }
+
+  .section { margin-bottom:1.5rem; }
+  .activity-list { display:flex;flex-direction:column;gap:0.5rem; }
+  .activity-item { background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:grid;grid-template-columns:1fr auto;gap:0.5rem;align-items:center; }
+  .activity-name { font-size:0.88rem;font-weight:500;margin-bottom:0.25rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+  .activity-meta { font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:0.5rem; }
+  .type-badge { display:inline-flex;align-items:center;gap:0.3rem;font-family:'DM Mono',monospace;font-size:0.55rem;padding:0.15rem 0.45rem;border-radius:4px;background:var(--surface2);color:var(--muted);margin-bottom:0.25rem; }
+  .activity-pace { font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:var(--orange);text-align:right; }
+  .activity-pace-unit { font-family:'DM Mono',monospace;font-size:0.58rem;color:var(--muted);text-align:right; }
+
+  .ai-panel { background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:1.5rem; }
+  .ai-header { padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:0.75rem; }
+  .ai-dot { width:8px;height:8px;border-radius:50%;background:var(--orange);animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+  .ai-label { font-family:'DM Mono',monospace;font-size:0.65rem;letter-spacing:0.12em;color:var(--muted);text-transform:uppercase; }
+  .ai-body { padding:1.25rem; }
+  .ai-row { display:flex;gap:0.5rem;margin-bottom:1rem; }
+  .ai-select { flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.65rem 0.75rem;color:var(--text);font-family:'Noto Sans KR',sans-serif;font-size:0.78rem;outline:none; }
+  .ai-btn { background:var(--orange);color:white;border:none;border-radius:8px;padding:0.65rem 1.1rem;font-family:'Bebas Neue',sans-serif;font-size:1rem;cursor:pointer;white-space:nowrap;transition:background 0.2s; }
+  .ai-btn:hover { background:var(--orange-dim); }
+  .ai-btn:disabled { opacity:0.4;cursor:not-allowed; }
+  .ai-response { background:var(--surface2);border-radius:8px;padding:1rem;font-size:0.82rem;line-height:1.75;color:#ccc;min-height:80px;white-space:pre-wrap; }
+  .ai-response.thinking { color:var(--muted);font-style:italic; }
+</style>
+</head>
+<body>
+
+<div id="loading-screen">
+  <div class="logo">P<span>A</span>CE</div>
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-text">토큰 갱신 중...</div>
+</div>
+
+<div id="error-screen">
+  <div class="logo">P<span style="color:var(--orange)">A</span>CE</div>
+  <div class="error-box">
+    <div class="error-title">// 연결 오류</div>
+    <div class="error-msg" id="error-msg"></div>
+  </div>
+</div>
+
+<div id="dashboard">
+  <div class="topbar">
+    <div class="topbar-logo">P<span>A</span>CE</div>
+    <div class="athlete-info">
+      <img class="athlete-avatar" id="athlete-avatar" src="" alt="">
+      <span class="athlete-name" id="athlete-name"></span>
+    </div>
+  </div>
+  <div class="main">
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">최근 30일 거리</div><div class="stat-value" id="s-dist">—</div><div class="stat-unit">km</div></div>
+      <div class="stat-card"><div class="stat-label">최근 30일 활동</div><div class="stat-value" id="s-count">—</div><div class="stat-unit">회</div></div>
+      <div class="stat-card"><div class="stat-label">평균 페이스 (런)</div><div class="stat-value" id="s-pace">—</div><div class="stat-unit">min/km</div></div>
+      <div class="stat-card"><div class="stat-label">총 상승고도</div><div class="stat-value" id="s-elev">—</div><div class="stat-unit">m</div></div>
+    </div>
+    <div class="race-pred" id="race-pred"></div>
+    <div class="recovery-card" id="recovery-card"></div>
+    <div class="section">
+      <div class="section-label" style="margin-bottom:0.75rem;">// 최근 활동</div>
+      <div class="activity-list" id="activity-list"></div>
+    </div>
+    <div class="ai-panel">
+      <div class="ai-header"><div class="ai-dot"></div><div class="ai-label">Claude AI · 퍼포먼스 분석</div></div>
+      <div class="ai-body">
+        <div class="ai-row">
+          <select class="ai-select" id="ai-mode">
+            <option value="trend">퍼포먼스 트렌드 분석</option>
+            <option value="plan">주간 훈련 플랜 생성</option>
+            <option value="recovery">회복 상태 평가</option>
+            <option value="race">레이스 전략 (10월 서브3)</option>
+          </select>
+          <button class="ai-btn" id="ai-btn" onclick="runAI()">분석</button>
+        </div>
+        <div class="ai-response" id="ai-response">분석 버튼을 눌러 Claude AI의 훈련 인사이트를 받아보세요.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const CLIENT_ID     = '245508';
+const CLIENT_SECRET = '639f27a403bbf8b11ff53f052d3c8f63917dd4e4';
+const REFRESH_TOKEN = '9bb08274f3ec29ae9b9db945fd8eac300de49138';
+
+let accessToken = null;
+let activities  = [];
+
+const p2 = n => String(n).padStart(2,'0');
+function secsToPace(spm) { const spk=spm*1000,m=Math.floor(spk/60),s=Math.round(spk%60); return `${m}'${p2(s)}`; }
+function fmtTime(sec) { const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=Math.round(sec%60); return h>0?`${h}:${p2(m)}:${p2(s)}`:`${m}:${p2(s)}`; }
+function setMsg(t){ document.getElementById('loading-text').textContent=t; }
+function showError(msg){
+  document.getElementById('loading-screen').style.display='none';
+  document.getElementById('error-screen').style.display='flex';
+  document.getElementById('error-msg').textContent=msg;
+}
+
+async function refreshAccessToken() {
+  const res = await fetch('https://www.strava.com/oauth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+      refresh_token: REFRESH_TOKEN,
+      grant_type: 'refresh_token'
+    })
+  });
+  if (!res.ok) throw new Error('토큰 갱신 실패: ' + res.status);
+  const data = await res.json();
+  if (!data.access_token) throw new Error(data.message || '토큰 갱신 실패');
+  return data.access_token;
+}
+
+async function api(path) {
+  const r = await fetch('https://www.strava.com/api/v3' + path, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  if (!r.ok) { const e = await r.json(); throw new Error(e.message || 'HTTP ' + r.status); }
+  return r.json();
+}
+
+async function main() {
+  try {
+    setMsg('토큰 갱신 중...');
+    accessToken = await refreshAccessToken();
+
+    setMsg('프로필 불러오는 중...');
+    const athlete = await api('/athlete');
+    document.getElementById('athlete-name').textContent = `${athlete.firstname} ${athlete.lastname}`;
+    if (athlete.profile_medium) document.getElementById('athlete-avatar').src = athlete.profile_medium;
+
+    setMsg('활동 데이터 불러오는 중...');
+    const since = Math.floor(Date.now()/1000) - 90*24*3600;
+    activities = await api(`/athlete/activities?after=${since}&per_page=60`);
+
+    renderStats(); renderRace(); renderRecovery(); renderActivities();
+    document.getElementById('loading-screen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+  } catch(e) {
+    showError(e.message);
+  }
+}
+
+function renderStats() {
+  const now=Date.now(), mo=30*24*3600*1000;
+  const rec=activities.filter(a=>new Date(a.start_date).getTime()>now-mo);
+  const runs=rec.filter(a=>a.type==='Run'&&a.average_speed>0);
+  document.getElementById('s-dist').textContent=(rec.reduce((s,a)=>s+a.distance,0)/1000).toFixed(1);
+  document.getElementById('s-count').textContent=rec.length;
+  const ap=runs.length?runs.reduce((s,a)=>s+(1/a.average_speed),0)/runs.length:0;
+  document.getElementById('s-pace').textContent=ap?secsToPace(ap):'—';
+  document.getElementById('s-elev').textContent=Math.round(rec.reduce((s,a)=>s+(a.total_elevation_gain||0),0));
+}
+
+function renderRace() {
+  const runs=activities.filter(a=>a.type==='Run'&&a.average_speed>0&&a.distance>3000);
+  if(!runs.length){document.getElementById('race-pred').style.display='none';return;}
+  runs.sort((a,b)=>b.average_speed-a.average_speed);
+  const b=runs[0];
+  const rt=d=>b.moving_time*Math.pow(d/b.distance,1.06);
+  const preds=[{d:5000,l:'5K'},{d:10000,l:'10K'},{d:21097,l:'하프마라톤'},{d:42195,l:'풀마라톤',goal:3*3600}];
+  document.getElementById('race-pred').innerHTML=`<div class="section-label">// 레이스 페이스 예측</div><div class="race-grid">${preds.map(p=>{
+    const t=rt(p.d), diff=p.goal?t-p.goal:null;
+    const gap=diff!==null?(diff>0?`<div class="race-gap" style="color:var(--red)">목표까지 ${fmtTime(Math.abs(diff))} 부족</div>`:`<div class="race-gap" style="color:var(--green)">🎯 서브3 달성 가능!</div>`):'';
+    return `<div><div class="race-dist">${p.l}</div><div class="race-time">${fmtTime(t)}</div>${p.goal?`<div class="race-goal">목표: ${fmtTime(p.goal)}</div>`:''}${gap}</div>`;
+  }).join('')}</div>`;
+}
+
+function renderRecovery() {
+  const now=Date.now(), wk=7*24*3600*1000;
+  const l7=activities.filter(a=>new Date(a.start_date).getTime()>now-wk);
+  const p7=activities.filter(a=>{const t=new Date(a.start_date).getTime();return t>now-2*wk&&t<=now-wk;});
+  const ld7=l7.reduce((s,a)=>s+a.moving_time/60,0);
+  const ld14=p7.reduce((s,a)=>s+a.moving_time/60,0);
+  const acwr=ld14>0?Math.min(ld7/ld14,2):1;
+  const rest=7-new Set(l7.map(a=>a.start_date_local?.slice(0,10))).size;
+  const rec=Math.min(100,Math.max(0,40+rest*10-(acwr>1.3?25:0)));
+  const fit=Math.min(100,Math.round(ld7/2));
+  const fat=Math.min(100,Math.round(acwr*50));
+  const bars=[
+    {n:'회복도',v:rec,c:rec>60?'var(--green)':rec>35?'var(--yellow)':'var(--red)'},
+    {n:'훈련량',v:fit,c:'var(--blue)'},
+    {n:'피로도',v:fat,c:fat>70?'var(--red)':fat>40?'var(--yellow)':'var(--green)'},
+  ];
+  const msg=rec>70?'✅ 회복 양호 — 고강도 훈련 가능':rec>40?'⚠️ 보통 — 중강도 훈련 권장':'🔴 회복 부족 — 가벼운 조깅 또는 휴식 권장';
+  document.getElementById('recovery-card').innerHTML=`<div class="section-label">// 회복 상태 분석</div><div class="recovery-bars">${bars.map(b=>`<div class="recovery-row"><div class="recovery-name">${b.n}</div><div class="bar-track"><div class="bar-fill" style="width:0%;background:${b.c}" data-t="${b.v}"></div></div><div class="bar-val" style="color:${b.c}">${b.v}%</div></div>`).join('')}</div><div class="recovery-comment">${msg}</div>`;
+  setTimeout(()=>document.querySelectorAll('.bar-fill').forEach(el=>{el.style.width=el.dataset.t+'%';}),100);
+}
+
+function renderActivities() {
+  const ic={Run:'🏃',Swim:'🏊',Ride:'🚴',Walk:'🚶',WeightTraining:'🏋️',Workout:'💪'};
+  document.getElementById('activity-list').innerHTML=activities.slice(0,12).map(a=>{
+    const d=new Date(a.start_date_local).toLocaleDateString('ko-KR',{month:'short',day:'numeric'});
+    const dist=(a.distance/1000).toFixed(2);
+    const h=Math.floor(a.moving_time/3600),m=Math.floor((a.moving_time%3600)/60);
+    const dur=h>0?`${h}h ${m}m`:`${m}m`;
+    const pace=a.type==='Run'&&a.average_speed>0?secsToPace(1/a.average_speed):'';
+    return `<div class="activity-item"><div><div class="type-badge">${ic[a.type]||'🏅'} ${a.type}</div><div class="activity-name">${a.name}</div><div class="activity-meta"><span>${d}</span><span>${dist}km</span><span>${dur}</span>${a.total_elevation_gain?`<span>↑${Math.round(a.total_elevation_gain)}m</span>`:''} ${a.average_heartrate?`<span>❤️${Math.round(a.average_heartrate)}bpm</span>`:''}</div></div><div>${pace?`<div class="activity-pace">${pace}</div><div class="activity-pace-unit">min/km</div>`:''}</div></div>`;
+  }).join('');
+}
+
+async function runAI() {
+  const mode=document.getElementById('ai-mode').value;
+  const btn=document.getElementById('ai-btn'), out=document.getElementById('ai-response');
+  btn.disabled=true; out.className='ai-response thinking'; out.textContent='Claude가 분석 중입니다...';
+  const sum=activities.slice(0,20).map(a=>`- [${a.type}] ${a.name}: ${(a.distance/1000).toFixed(2)}km, ${Math.round(a.moving_time/60)}분${a.type==='Run'&&a.average_speed>0?`, ${secsToPace(1/a.average_speed)}/km`:''}${a.average_heartrate?`, ❤️${Math.round(a.average_heartrate)}bpm`:''}, ↑${Math.round(a.total_elevation_gain||0)}m`).join('\n');
+  const ps={
+    trend:`당신은 엘리트 마라톤·트라이애슬론 코치입니다.\n운동 데이터:\n${sum}\n\n퍼포먼스 트렌드를 한국어로 분석해주세요. 페이스 변화, 훈련 부하, 개선점과 주의사항 핵심 3가지를 구체적으로 작성하세요.`,
+    plan:`당신은 철인3종·마라톤 코치입니다.\n운동 데이터:\n${sum}\n\n목표: 10월 마라톤 서브3, 11월 입문 트라이애슬론. 현재 회복 후 재건 단계.\n다음 주 훈련 플랜을 요일별로 한국어로 작성하세요 (종목, 거리/시간, 강도, 목적 포함).`,
+    recovery:`당신은 스포츠 과학자입니다.\n운동 데이터:\n${sum}\n\n회복 상태를 한국어로 평가하세요. 훈련 부하 적절성, 회복 충분 여부, 부상 위험 신호, 이번 주 권장 강도를 구체적으로 작성하세요.`,
+    race:`당신은 서브3 마라톤 코치입니다.\n운동 데이터:\n${sum}\n\n10월 풀마라톤 서브3(2:59:59) 전략을 한국어로 작성하세요. 목표 km페이스, 전반/후반 구간 전략, 지금부터 레이스까지 핵심 훈련 포인트를 포함하세요.`
+  };
+  try {
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:ps[mode]}]})});
+    const d=await r.json();
+    out.className='ai-response';
+    out.textContent=d.content?.map(c=>c.text||'').join('')||'응답 없음';
+  } catch(e) { out.className='ai-response'; out.textContent='오류: '+e.message; }
+  btn.disabled=false;
+}
+
+main();
+</script>
+</body>
+</html>
